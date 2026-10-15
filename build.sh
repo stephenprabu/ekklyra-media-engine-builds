@@ -3,6 +3,8 @@ set -euo pipefail
 platform=${1:?platform}; arch=${2:?arch}
 case "$platform/$arch" in win32/x64|darwin/x64|darwin/arm64) ;; *) exit 2;; esac
 root="$PWD"
+# Source archives must never discover the enclosing recipe repository's Git data.
+export GIT_CEILING_DIRECTORIES="$root/work"
 mkdir -p work/source work/prefix work/evidence out
 python3 - <<'PY'
 import json, hashlib, urllib.request, pathlib, tarfile
