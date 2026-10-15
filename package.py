@@ -25,6 +25,13 @@ if platform=='win32':
 else:
     assert struct.unpack_from('<I',data)[0]==0xfeedfacf
     assert struct.unpack_from('<I',data,4)[0]==({'x64':0x1000007,'arm64':0x100000c}[arch])
+    offset=32
+    minimum=None
+    for _ in range(struct.unpack_from('<I',data,16)[0]):
+        cmd,size=struct.unpack_from('<II',data,offset)
+        if cmd==0x32: minimum=struct.unpack_from('<I',data,offset+12)[0]
+        offset+=size
+    assert minimum == 12 << 16, f'Unexpected macOS minimum: {minimum}'
     deps=run(['otool','-L',ff])
     for line in deps.splitlines()[1:]:
         assert line.strip().startswith(('/usr/lib/','/System/Library/')),line
@@ -64,6 +71,7 @@ with tarfile.open(source_archive,'w:gz') as archive:
     archive.add(root/'work/evidence',arcname='evidence')
 sha=lambda p:hashlib.sha256(p.read_bytes()).hexdigest()
 manifest={'platform':platform,'arch':arch,'version':'7.1.5','license':'GPL-3.0-or-later','upstreamUrl':'https://github.com/FFmpeg/FFmpeg','sha256':sha(bundle/ff.name),'notices':['notices/'+p.name for p in notices.iterdir()],'buildInstructions':'BUILD.md','sourceArchive':source_archive.name,'sourceSha256':sha(source_archive),'signed':False,'notarized':False,'buildCommit':os.getenv('GITHUB_SHA'),'runId':os.getenv('GITHUB_RUN_ID')}
+if platform=='darwin': manifest['minimumOSVersion']='12.0'
 (bundle/'manifest.json').write_text(json.dumps(manifest,indent=2))
 (bundle/'SHA256SUMS').write_text('\n'.join(f'{sha(p)}  {p.relative_to(bundle).as_posix()}' for p in sorted(bundle.rglob('*')) if p.is_file())+'\n')
 with tarfile.open(root/'out'/f'engine-{platform}-{arch}.tar.gz','w:gz') as archive:

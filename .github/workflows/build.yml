@@ -1,6 +1,11 @@
 name: Build standalone engines
 on:
   workflow_dispatch:
+    inputs:
+      mac_only:
+        description: Rebuild only both Mac engines
+        type: boolean
+        default: false
 permissions:
   contents: read
 concurrency:
@@ -37,11 +42,15 @@ jobs:
             arch: arm64
     runs-on: ${{ matrix.runner }}
     steps:
+      - name: Skip unchanged Windows engine
+        if: inputs.mac_only && runner.os == 'Windows'
+        run: echo "Windows engine is unchanged; using previous verified build."
       - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        if: runner.os != 'Windows' || !inputs.mac_only
         with:
           persist-credentials: false
       - uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && !inputs.mac_only
         with:
           msystem: MINGW64
           update: false
@@ -53,13 +62,14 @@ jobs:
         if: runner.os == 'macOS'
         run: brew install nasm pkg-config
       - name: Build Windows engine
-        if: runner.os == 'Windows'
+        if: runner.os == 'Windows' && !inputs.mac_only
         shell: msys2 {0}
         run: bash build.sh win32 x64
       - name: Build Mac engine
         if: runner.os == 'macOS'
         run: bash build.sh darwin '${{ matrix.arch }}'
       - name: Upload engine to unpublished draft
+        if: runner.os != 'Windows' || !inputs.mac_only
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}

@@ -5,6 +5,9 @@ case "$platform/$arch" in win32/x64|darwin/x64|darwin/arm64) ;; *) exit 2;; esac
 root="$PWD"
 # Source archives must never discover the enclosing recipe repository's Git data.
 export GIT_CEILING_DIRECTORIES="$root/work"
+if [[ "$platform" == darwin ]]; then
+  export MACOSX_DEPLOYMENT_TARGET=12.0
+fi
 mkdir -p work/source work/prefix work/evidence out
 python3 - <<'PY'
 import json, hashlib, urllib.request, pathlib, tarfile
