@@ -1,0 +1,67 @@
+name: Build standalone engines
+on:
+  workflow_dispatch:
+permissions:
+  contents: read
+concurrency:
+  group: standalone-engines
+  cancel-in-progress: false
+jobs:
+  prepare:
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Create unpublished delivery draft
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release create "engines-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" --target "$GITHUB_SHA" --draft --title "Engine candidates ${GITHUB_RUN_ID}" --notes "Unsigned standalone engines and corresponding sources. Not an application release."
+  build:
+    needs: prepare
+    timeout-minutes: 60
+    permissions:
+      contents: write
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - runner: windows-2022
+            platform: win32
+            arch: x64
+          - runner: macos-15-intel
+            platform: darwin
+            arch: x64
+          - runner: macos-15
+            platform: darwin
+            arch: arm64
+    runs-on: ${{ matrix.runner }}
+    steps:
+      - uses: actions/checkout@11d5960a326750d5838078e36cf38b85af677262
+        with:
+          persist-credentials: false
+      - uses: msys2/setup-msys2@ec48f7c5447b3140e2b088413ae3a55687bccb6e
+        if: runner.os == 'Windows'
+        with:
+          msystem: MINGW64
+          update: false
+          cache: false
+          install: >-
+            make nasm curl tar python
+            mingw-w64-x86_64-gcc mingw-w64-x86_64-pkgconf
+      - name: Mac toolchain
+        if: runner.os == 'macOS'
+        run: brew install nasm pkg-config
+      - name: Build Windows engine
+        if: runner.os == 'Windows'
+        shell: msys2 {0}
+        run: bash build.sh win32 x64
+      - name: Build Mac engine
+        if: runner.os == 'macOS'
+        run: bash build.sh darwin '${{ matrix.arch }}'
+      - name: Upload engine to unpublished draft
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          GH_REPO: ${{ github.repository }}
+        run: gh release upload "engines-${GITHUB_RUN_ID}-${GITHUB_RUN_ATTEMPT}" "out/engine-${{ matrix.platform }}-${{ matrix.arch }}.tar.gz"
